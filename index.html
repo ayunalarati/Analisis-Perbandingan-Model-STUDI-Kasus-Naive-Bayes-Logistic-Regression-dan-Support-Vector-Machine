@@ -1,0 +1,1592 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Analisis Sentimen</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <!-- Pautan d3.layout.cloud.js telah diperbaiki ke CDN yang lebih stabil -->
+    <script src="https://unpkg.com/d3-cloud@1.2.5/build/d3.layout.cloud.js"></script> 
+    <!-- CDN untuk Chart.js Datalabels Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0/dist/chartjs-plugin-datalabels.min.js"></script>
+    <!-- Pastikan xlsx.full.min.js tersedia di direktori yang sama atau berikan path lengkap -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script> 
+    <style>
+        /* CSS yang sudah ada, tidak perlu diubah */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 20px;
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .input-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            border: 2px solid #e9ecef;
+        }
+
+        .input-section h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            text-align: center;
+        }
+
+        .tab-buttons {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+            gap: 10px;
+        }
+
+        .tab-button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            background-color: #e0e0e0;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .tab-button.active {
+            background-color: #3498db;
+            color: white;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .tab-content {
+            display: none;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: white;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .input-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .input-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .input-item label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #495057;
+        }
+
+        .input-item input, .input-item textarea {
+            padding: 10px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .input-item input:focus, .input-item textarea:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        .model-section {
+            background: #fff;
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+            margin-bottom: 15px;
+        }
+
+        .model-section h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            display: flex;
+            align-items: center;
+        }
+
+        .model-icon {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+            border-radius: 50%;
+        }
+
+        .nb-icon { background: #e74c3c; }
+        .lr-icon { background: #f39c12; }
+        .svm-icon { background: #27ae60; }
+
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .action-btn {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
+        }
+
+        .action-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .action-btn.clear-btn {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+        }
+        .action-btn.clear-btn:hover {
+            box-shadow: 0 5px 15px rgba(231, 76, 60, 0.4);
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        .chart-container {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            border: 2px solid #f8f9fa;
+            transition: transform 0.3s;
+        }
+
+        .chart-container:hover {
+            transform: translateY(-5px);
+        }
+
+        .chart-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #2c3e50;
+            text-align: center;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 300px;
+        }
+
+        .metrics-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .metrics-table th {
+            background: linear-gradient(135deg, #34495e, #2c3e50);
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .metrics-table td {
+            padding: 12px;
+            text-align: center;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        .metrics-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .best-model, .comparison-highlights, .performance-insights-card, .overall-performance-card {
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin-top: 30px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .best-model {
+            animation: pulse 2s infinite; /* Animasi detak jantung */
+        }
+
+        .best-model h2, .comparison-highlights h2, .performance-insights-card h2, .overall-performance-card h2 {
+            margin-bottom: 10px;
+            font-size: 1.8em;
+        }
+        .comparison-highlights, .performance-insights-card, .overall-performance-card {
+            background: white;
+            color: #333;
+            border: 2px solid #e9ecef;
+            text-align: left;
+        }
+        .comparison-highlights h2, .performance-insights-card h2, .overall-performance-card h2 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .comparison-highlights ul {
+            list-style-type: disc;
+            margin-left: 20px;
+            padding-left: 0;
+        }
+        .comparison-highlights li {
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #3498db;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .stat-label {
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+
+        /* Word Cloud Specific Styles */
+        .word-cloud-container {
+            display: flex;
+            justify-content: space-around;
+            gap: 20px;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+
+        .word-cloud-item {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            border: 2px solid #f8f9fa;
+            flex: 1; /* Allow items to grow/shrink */
+            min-width: 350px; /* Minimum width for each word cloud */
+            text-align: center;
+        }
+
+        .word-cloud-item svg {
+            width: 100%;
+            height: 300px; /* Set a fixed height for consistency */
+        }
+
+        .error-message, .success-message {
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .success-message {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .excel-upload-section {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .excel-upload-section input[type="file"] {
+            margin-bottom: 15px;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .excel-upload-section p {
+            margin-top: 20px;
+            font-style: italic;
+            color: #555;
+            text-align: left; /* Align guidance to left */
+            background-color: #e6f0ff;
+            border: 1px dashed #a0c4ff;
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .excel-upload-section pre {
+            background-color: #f4f4f4;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 5px;
+            overflow-x: auto; /* Enable horizontal scrolling for code blocks */
+        }
+
+        /* Loading Overlay Styles */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            visibility: hidden;
+            opacity: 0;
+            transition: visibility 0s, opacity 0.3s linear;
+        }
+
+        .loading-overlay.active {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .spinner {
+            border: 6px solid #f3f3f3;
+            border-top: 6px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); }
+            50% { transform: scale(1.02); box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3); }
+            100% { transform: scale(1); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); }
+        }
+
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .input-group {
+                grid-template-columns: 1fr;
+            }
+
+            .word-cloud-container {
+                flex-direction: column;
+                align-items: center;
+            }
+            .word-cloud-item {
+                width: 100%; /* Full width on small screens */
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="spinner"></div>
+        <p>Memproses data, harap tunggu...</p>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>Analisis Perbandingan Kinerja Model Klasifikasi</h1>
+            <p>Studi Kasus: Naive Bayes, Logistic Regression, dan Support Vector Machine</p>
+            <p>Analisis Sentimen Data Twitter Tagar #IndonesiaGelap</p>
+        </div>
+
+        <div class="input-section">
+            <div id="message-area"></div>
+
+            <div class="tab-buttons">
+                <button class="tab-button active" onclick="openTab('json-input-tab')">Input JSON Langsung</button>
+                <button class="tab-button" onclick="openTab('excel-upload-tab')">Unggah File Excel</button>
+            </div>
+
+            <div id="json-input-tab" class="tab-content active">
+                <h2>Input Hasil Analisis Anda (JSON)</h2>
+                <div class="input-item" style="margin-bottom: 20px;">
+                    <label for="json-input">Paste JSON Anda di sini:</label>
+                    <textarea id="json-input" rows="15" placeholder='Contoh format JSON:
+{
+  "naive_bayes": { "accuracy": 0.5945, "precision": 0.5394, "recall": 0.5511, "f1_score": 0.5446, "confusion_matrix": { "TP": 100, "TN": 200, "FP": 50, "FN": 30 } },
+  "logistic_regression": { "accuracy": 0.8201, "precision": 0.824, "recall": 0.7675, "f1_score": 0.7903, "confusion_matrix": { "TP": 250, "TN": 300, "FP": 20, "FN": 15 } },
+  "svm": { "accuracy": 0.8476, "precision": 0.8526, "recall": 0.8035, "f1_score": 0.8248, "confusion_matrix": { "TP": 280, "TN": 350, "FP": 10, "FN": 5 } },
+  "sentiment_distribution": { "positive": 349, "negative": 321, "neutral": 969 },
+  "word_cloud": {
+    "positive": [{"text": "maju", "value": 50}, {"text": "baik", "value": 45}],
+    "negative": [{"text": "buruk", "value": 60}, {"text": "korupsi", "value": 55}],
+    "neutral": [{"text": "berita", "value": 100}, {"text": "info", "value": 90}]
+  }
+}'></textarea>
+                    <div class="action-buttons">
+                        <button class="action-btn" onclick="updateVisualizationsFromTextarea()">Proses JSON</button>
+                        <button class="action-btn clear-btn" onclick="clearData()">Bersihkan Data</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="excel-upload-tab" class="tab-content">
+                <div class="excel-upload-section">
+                    <h2>Unggah File Excel</h2>
+                    <input type="file" id="excel-file-input" accept=".xls, .xlsx">
+                    <div class="action-buttons">
+                        <button class="action-btn" onclick="processExcelFile()">Unggah & Perbarui Visualisasi</button>
+                        <button class="action-btn clear-btn" onclick="clearData()">Bersihkan Data</button>
+                    </div>
+
+                    <p>
+                        **Panduan Struktur File Excel Anda:**
+                        <ul>
+                            <li>**Sheet1 (Default):** Harus berisi tabel kinerja model dan confusion matrix, dengan baris pertama sebagai **header model** (misal: "Naive Bayes", "Logistic Regression", "SVM") dan kolom pertama sebagai **nama metrik/kategori** (misal: "Accuracy", "CM_TP", "Positive").</li>
+                            <li>**Sheet2 (Default):** Harus berisi daftar **kata kunci sentimen Positif**, dengan dua kolom: **"Word"** dan **"Value"**.</li>
+                            <li>**Sheet3 (Default):** Harus berisi daftar **kata kunci sentimen Negatif**, dengan dua kolom: **"Word"** dan **"Value"**.</li>
+                            <li>**Sheet4 (Default):** Harus berisi daftar **kata kunci sentimen Netral**, dengan dua kolom: **"Word"** dan **"Value"**.</li>
+                        </ul>
+                        Lihat contoh struktur di bawah ini untuk detail yang tepat.
+                    </p>
+                    <h3>Contoh Isi Sheet1 (Metrik dan Distribusi):</h3>
+                    <pre>
+| Kategori      | Naive Bayes | Logistic Regression | SVM    |
+|---------------|-------------|---------------------|--------|
+| Accuracy      | 0.854       | 0.887               | 0.901  |
+| Precision     | 0.842       | 0.875               | 0.893  |
+| Recall        | 0.865       | 0.890               | 0.910  |
+| F1-Score      | 0.853       | 0.882               | 0.901  |
+| CM_TP         | 100         | 105                 | 108    |
+| CM_TN         | 90          | 95                  | 97     |
+| CM_FP         | 10          | 5                   | 2      |
+| CM_FN         | 15          | 10                  | 8      |
+| Positive      | 450         |                     |        |
+| Negative      | 300         |                     |        |
+| Neutral       | 250         |                     |        |
+                    </pre>
+                    <h3>Contoh Isi Sheet2 (Word Cloud Positif):</h3>
+                    <pre>
+| Word    | Value |
+|---------|-------|
+| Maju    | 50    |
+| Terang  | 45    |
+| Harapan | 40    |
+                    </pre>
+                    <h3>Contoh Isi Sheet3 (Word Cloud Negatif):</h3>
+                    <pre>
+| Word    | Value |
+|---------|-------|
+| Gelap   | 60    |
+| Listrik | 55    |
+| Mati    | 50    |
+                    </pre>
+                    <h3>Contoh Isi Sheet4 (Word Cloud Netral):</h3>
+                    <pre>
+| Word    | Value |
+|---------|-------|
+| Berita  | 100   |
+| Info    | 90    |
+| Update  | 80    |
+                    </pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="summary-stats">
+            <div class="stat-card">
+                <div class="stat-value" id="total-tweets">0</div>
+                <div class="stat-label">Total Tweet</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="positive-percent">0%</div>
+                <div class="stat-label">Sentimen Positif</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="negative-percent">0%</div>
+                <div class="stat-label">Sentimen Negatif</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="neutral-percent">0%</div>
+                <div class="stat-label">Sentimen Netral</div>
+            </div>
+        </div>
+
+        <div class="best-model" id="bestModel">
+            <h2>Model Terbaik: <span id="bestModelName">-</span></h2>
+            <p>Berdasarkan rata-rata semua metrik evaluasi</p>
+            <p>Skor Rata-rata: <span id="bestModelScore">-</span>%</p>
+        </div>
+
+        <div class="overall-performance-card" style="margin-top: 30px;">
+            <h2>Performa Model Keseluruhan</h2>
+            <div class="chart-wrapper">
+                <canvas id="overallPerformanceChart"></canvas>
+            </div>
+        </div>
+
+        <div class="comparison-highlights" id="comparisonHighlights">
+            <h2>Sorotan Perbandingan Model</h2>
+            <!-- Konten ini akan diisi oleh JavaScript -->
+            <p>Memuat perbandingan model...</p>
+        </div>
+
+        <div class="performance-insights-card" style="margin-top: 30px;">
+            <h2>Insight Kinerja Model</h2>
+            <p id="performanceInsightsText">
+                Berdasarkan data yang diunggah, Anda dapat menganalisis mengapa model tertentu berkinerja lebih baik atau lebih buruk.
+                Misalnya, Naive Bayes mungkin cocok untuk data dengan fitur independen, sementara SVM dan Logistic Regression
+                seringkali lebih baik untuk dataset yang kompleks atau non-linear. Perhatikan juga metrik presisi dan recall
+                untuk memahami trade-off antara False Positives dan False Negatives, yang penting tergantung pada tujuan analisis Anda.
+            </p>
+        </div>
+
+        <div class="charts-grid">
+            <!-- Hanya satu chart untuk perbandingan metrik utama -->
+            <div class="chart-container" style="grid-column: span 2;"> <!-- Mengambil lebar penuh grid -->
+                <div class="chart-title">Perbandingan Metrik Kinerja Model (Akurasi, Presisi, Recall, F1-Score)</div>
+                <div class="chart-wrapper">
+                    <canvas id="metricsComparisonChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-title">Distribusi Sentimen Tweet</div>
+                <div class="chart-wrapper">
+                    <canvas id="sentimentChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-title">Radar Chart - Profil Performa Model</div>
+                <div class="chart-wrapper">
+                    <canvas id="radarChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-container" style="margin-top: 30px;">
+            <div class="chart-title">Metrik Kinerja Model</div>
+            <table class="metrics-table">
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th>Accuracy (%)</th>
+                        <th>Precision (%)</th>
+                        <th>Recall (%)</th>
+                        <th>F1-Score (%)</th>
+                    </tr>
+                </thead>
+                <tbody id="performanceMetricsTableBody">
+                    <tr>
+                        <td><strong>Naive Bayes</strong></td>
+                        <td id="nb-acc-display">-</td>
+                        <td id="nb-prec-display">-</td>
+                        <td id="nb-rec-display">-</td>
+                        <td id="nb-f1-display">-</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Logistic Regression</strong></td>
+                        <td id="lr-acc-display">-</td>
+                        <td id="lr-prec-display">-</td>
+                        <td id="lr-rec-display">-</td>
+                        <td id="lr-f1-display">-</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Support Vector Machine</strong></td>
+                        <td id="svm-acc-display">-</td>
+                        <td id="svm-prec-display">-</td>
+                        <td id="svm-rec-display">-</td>
+                        <td id="svm-f1-display">-</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="chart-container" style="margin-top: 30px;">
+            <div class="chart-title">Confusion Matrix</div>
+            <table class="metrics-table">
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th>TP</th>
+                        <th>TN</th>
+                        <th>FP</th>
+                        <th>FN</th>
+                    </tr>
+                </thead>
+                <tbody id="confusionMatrixTableBody">
+                    <tr>
+                        <td><strong>Naive Bayes</strong></td>
+                        <td id="nb-tp-display">-</td>
+                        <td id="nb-tn-display">-</td>
+                        <td id="nb-fp-display">-</td>
+                        <td id="nb-fn-display">-</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Logistic Regression</strong></td>
+                        <td id="lr-tp-display">-</td>
+                        <td id="lr-tn-display">-</td>
+                        <td id="lr-fp-display">-</td>
+                        <td id="lr-fn-display">-</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Support Vector Machine</strong></td>
+                        <td id="svm-tp-display">-</td>
+                        <td id="svm-tn-display">-</td>
+                        <td id="svm-fp-display">-</td>
+                        <td id="svm-fn-display">-</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="word-cloud-container">
+            <div class="word-cloud-item">
+                <div class="chart-title">Word Cloud Sentimen Positif</div>
+                <svg id="wordCloudPositive"></svg>
+            </div>
+            <div class="word-cloud-item">
+                <div class="chart-title">Word Cloud Sentimen Negatif</div>
+                <svg id="wordCloudNegative"></svg>
+            </div>
+            <div class="word-cloud-item">
+                <div class="chart-title">Word Cloud Sentimen Netral</div>
+                <svg id="wordCloudNeutral"></svg>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let charts = {};
+        let currentData = null; // Menyimpan data yang terakhir diproses
+
+        // Register Chart.js Datalabels plugin
+        Chart.register(ChartDataLabels);
+
+        // Fungsi untuk menampilkan/menyembunyikan overlay loading
+        function showLoading(show) {
+            const overlay = document.getElementById('loading-overlay');
+            if (show) {
+                overlay.classList.add('active');
+            } else {
+                overlay.classList.remove('active');
+            }
+        }
+
+        // Fungsi untuk menampilkan pesan (error/success)
+        function showMessage(type, message) {
+            const messageArea = document.getElementById('message-area');
+            messageArea.innerHTML = `<div class="${type}-message">${message}</div>`;
+            // Hapus pesan setelah beberapa detik
+            setTimeout(() => {
+                messageArea.innerHTML = '';
+            }, 7000); // Pesan hilang setelah 7 detik
+        }
+
+        // Fungsi untuk mengganti tab
+        function openTab(tabId) {
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabContents.forEach(content => {
+                content.classList.remove('active');
+            });
+
+            const tabButtons = document.querySelectorAll('.tab-button');
+            tabButtons.forEach(button => {
+                button.classList.remove('active');
+            });
+
+            document.getElementById(tabId).classList.add('active');
+            document.querySelector(`[onclick="openTab('${tabId}')"]`).classList.add('active');
+            showMessage('success', 'Silakan masukkan data sesuai tab yang dipilih.');
+        }
+
+        // Fungsi inti yang menerima semua data sebagai parameter
+        function updateAllVisualizations(data) {
+            currentData = data; // Simpan data yang berhasil diproses
+            const nbData = data.naive_bayes;
+            const lrData = data.logistic_regression;
+            const svmData = data.svm;
+            const sentimentData = data.sentiment_distribution;
+            const wordCloudData = data.word_cloud;
+
+            const totalData = sentimentData.positive + sentimentData.negative + sentimentData.neutral;
+
+            // Update summary stats
+            document.getElementById('total-tweets').textContent = totalData.toLocaleString();
+            document.getElementById('positive-percent').textContent = totalData > 0 ? (sentimentData.positive / totalData * 100).toFixed(1) + '%' : '0%';
+            document.getElementById('negative-percent').textContent = totalData > 0 ? (sentimentData.negative / totalData * 100).toFixed(1) + '%' : '0%';
+            document.getElementById('neutral-percent').textContent = totalData > 0 ? (sentimentData.neutral / totalData * 100).toFixed(1) + '%' : '0%';
+
+            // Update Performance Metrics table
+            document.getElementById('nb-acc-display').textContent = (nbData.accuracy * 100).toFixed(1);
+            document.getElementById('nb-prec-display').textContent = (nbData.precision * 100).toFixed(1);
+            document.getElementById('nb-rec-display').textContent = (nbData.recall * 100).toFixed(1);
+            document.getElementById('nb-f1-display').textContent = (nbData.f1_score * 100).toFixed(1);
+
+            document.getElementById('lr-acc-display').textContent = (lrData.accuracy * 100).toFixed(1);
+            document.getElementById('lr-prec-display').textContent = (lrData.precision * 100).toFixed(1);
+            document.getElementById('lr-rec-display').textContent = (lrData.recall * 100).toFixed(1);
+            document.getElementById('lr-f1-display').textContent = (lrData.f1_score * 100).toFixed(1);
+
+            document.getElementById('svm-acc-display').textContent = (svmData.accuracy * 100).toFixed(1);
+            document.getElementById('svm-prec-display').textContent = (svmData.precision * 100).toFixed(1);
+            document.getElementById('svm-rec-display').textContent = (svmData.recall * 100).toFixed(1);
+            document.getElementById('svm-f1-display').textContent = (svmData.f1_score * 100).toFixed(1);
+
+            // Update Confusion Matrix table
+            document.getElementById('nb-tp-display').textContent = nbData.confusion_matrix.TP;
+            document.getElementById('nb-tn-display').textContent = nbData.confusion_matrix.TN;
+            document.getElementById('nb-fp-display').textContent = nbData.confusion_matrix.FP;
+            document.getElementById('nb-fn-display').textContent = nbData.confusion_matrix.FN;
+
+            document.getElementById('lr-tp-display').textContent = lrData.confusion_matrix.TP;
+            document.getElementById('lr-tn-display').textContent = lrData.confusion_matrix.TN;
+            document.getElementById('lr-fp-display').textContent = lrData.confusion_matrix.FP;
+            document.getElementById('lr-fn-display').textContent = lrData.confusion_matrix.FN;
+
+            document.getElementById('svm-tp-display').textContent = svmData.confusion_matrix.TP;
+            document.getElementById('svm-tn-display').textContent = svmData.confusion_matrix.TN;
+            document.getElementById('svm-fp-display').textContent = svmData.confusion_matrix.FP;
+            document.getElementById('svm-fn-display').textContent = svmData.confusion_matrix.FN;
+
+            // Calculate best model
+            const nbAvg = (nbData.accuracy * 100 + nbData.precision * 100 + nbData.recall * 100 + nbData.f1_score * 100) / 4;
+            const lrAvg = (lrData.accuracy * 100 + lrData.precision * 100 + lrData.recall * 100 + lrData.f1_score * 100) / 4;
+            const svmAvg = (svmData.accuracy * 100 + svmData.precision * 100 + svmData.recall * 100 + svmData.f1_score * 100) / 4;
+
+            let bestModel = 'Naive Bayes';
+            let bestScore = nbAvg;
+            
+            if (lrAvg > bestScore) {
+                bestModel = 'Logistic Regression';
+                bestScore = lrAvg;
+            }
+            if (svmAvg > bestScore) {
+                bestModel = 'Support Vector Machine';
+                bestScore = svmAvg;
+            }
+
+            document.getElementById('bestModelName').textContent = bestModel;
+            document.getElementById('bestModelScore').textContent = bestScore.toFixed(1);
+
+            // Generate Comparison Highlights
+            const modelScores = [
+                { name: 'Naive Bayes', avg: nbAvg, acc: nbData.accuracy, prec: nbData.precision, rec: nbData.recall, f1: nbData.f1_score },
+                { name: 'Logistic Regression', avg: lrAvg, acc: lrData.accuracy, prec: lrData.precision, rec: lrData.recall, f1: lrData.f1_score },
+                { name: 'Support Vector Machine', avg: svmAvg, acc: svmData.accuracy, prec: svmData.precision, rec: svmData.recall, f1: svmData.f1_score }
+            ];
+
+            modelScores.sort((a, b) => b.avg - a.avg); // Sort by average score descending
+
+            let comparisonText = `
+                <p>Secara keseluruhan, **${modelScores[0].name}** menunjukkan kinerja terbaik dengan skor rata-rata **${modelScores[0].avg.toFixed(1)}%**.</p>
+                <p>Berikut adalah perbandingan singkat antar model:</p>
+                <ul>
+                    <li><strong>${modelScores[0].name}:</strong> Model ini unggul dalam sebagian besar metrik, mencapai akurasi **${(modelScores[0].acc * 100).toFixed(1)}%**, presisi **${(modelScores[0].prec * 100).toFixed(1)}%**, recall **${(modelScores[0].rec * 100).toFixed(1)}%**, dan F1-Score **${(modelScores[0].f1 * 100).toFixed(1)}%**. Ini menunjukkan keseimbangan yang sangat baik antara identifikasi positif dan negatif yang benar.</li>
+                    <li><strong>${modelScores[1].name}:</strong> Berada di posisi kedua, model ini memiliki akurasi **${(modelScores[1].acc * 100).toFixed(1)}%**, presisi **${(modelScores[1].prec * 100).toFixed(1)}%**, recall **${(modelScores[1].rec * 100).toFixed(1)}%**, dan F1-Score **${(modelScores[1].f1 * 100).toFixed(1)}%**. Kinerjanya cukup solid dan merupakan alternatif yang kuat.</li>
+                    <li><strong>${modelScores[2].name}:</strong> Model ini menunjukkan kinerja **${(modelScores[2].acc * 100).toFixed(1)}%** akurasi, **${(modelScores[2].prec * 100).toFixed(1)}%** presisi, **${(modelScores[2].rec * 100).toFixed(1)}%** recall, dan **${(modelScores[2].f1 * 100).toFixed(1)}%** F1-Score. Meskipun tidak sekuat dua model lainnya dalam dataset ini, Naive Bayes seringkali baik untuk dataset dengan fitur independen dan komputasi yang cepat.</li>
+                </ul>
+                <p>Untuk detail lebih lanjut, perhatikan tabel Metrik Kinerja Model dan Confusion Matrix di bawah ini.</p>
+            `;
+            document.getElementById('comparisonHighlights').innerHTML = comparisonText;
+
+
+            // Create/Update charts
+            // createBarChart('accuracyChart', 'Accuracy (%)', [nbData.accuracy * 100, lrData.accuracy * 100, svmData.accuracy * 100]); // Dihapus
+            // createBarChart('precisionChart', 'Precision (%)', [nbData.precision * 100, lrData.precision * 100, svmData.precision * 100]); // Dihapus
+            // createBarChart('recallChart', 'Recall (%)', [nbData.recall * 100, lrData.recall * 100, svmData.recall * 100]); // Dihapus
+            // createBarChart('f1Chart', 'F1-Score (%)', [nbData.f1_score * 100, lrData.f1_score * 100, svmData.f1_score * 100]); // Dihapus
+            
+            createMetricsComparisonChart(nbData, lrData, svmData); // Grafik baru
+            createSentimentChart(sentimentData.positive, sentimentData.negative, sentimentData.neutral);
+            createRadarChart(nbData.accuracy * 100, nbData.precision * 100, nbData.recall * 100, nbData.f1_score * 100,
+                             lrData.accuracy * 100, lrData.precision * 100, lrData.recall * 100, lrData.f1_score * 100,
+                             svmData.accuracy * 100, svmData.precision * 100, svmData.recall * 100, svmData.f1_score * 100);
+            createOverallPerformanceChart(modelScores); // New chart for overall performance
+        
+            // Update Word Clouds
+            // Menggunakan array warna yang lebih bervariasi untuk word cloud
+            const positiveColors = ["#4CAF50", "#8BC34A", "#CDDC39", "#FFEB3B", "#FFC107"]; // Hijau ke kuning
+            const negativeColors = ["#F44336", "#E91E63", "#9C27B0", "#673AB7", "#3F51B5"]; // Merah ke ungu
+            const neutralColors = ["#2196F3", "#03A9F4", "#00BCD4", "#009688", "#4CAF50"]; // Biru ke teal
+
+            drawWordCloud("wordCloudPositive", wordCloudData.positive || [], positiveColors);
+            drawWordCloud("wordCloudNegative", wordCloudData.negative || [], negativeColors);
+            drawWordCloud("wordCloudNeutral", wordCloudData.neutral || [], neutralColors);
+        }
+
+        // Fungsi baru untuk memproses JSON dari textarea
+        function updateVisualizationsFromTextarea() {
+            showLoading(true);
+            const jsonInput = document.getElementById('json-input').value;
+            try {
+                const data = JSON.parse(jsonInput);
+
+                // Validasi format JSON minimal
+                if (!data.naive_bayes || !data.logistic_regression || !data.svm || !data.sentiment_distribution || !data.word_cloud) {
+                    throw new Error("Format JSON tidak lengkap. Pastikan semua bagian (naive_bayes, logistic_regression, svm, sentiment_distribution, word_cloud) ada.");
+                }
+                
+                // Validasi Confusion Matrix keys
+                const models = ['naive_bayes', 'logistic_regression', 'svm'];
+                for (const model of models) {
+                    if (!data[model].confusion_matrix || !('TP' in data[model].confusion_matrix) || !('TN' in data[model].confusion_matrix) || !('FP' in data[model].confusion_matrix) || !('FN' in data[model].confusion_matrix)) {
+                        throw new Error(`Confusion matrix untuk model '${model}' tidak lengkap atau salah format.`);
+                    }
+                }
+
+                updateAllVisualizations(data);
+                showMessage('success', "Data JSON berhasil diproses dan visualisasi diperbarui!");
+
+            } catch (e) {
+                showMessage('error', `Format JSON tidak valid. Pastikan JSON Anda benar. Error: ${e.message}`);
+                console.error("JSON parsing error:", e);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Fungsi untuk memproses file Excel
+        function processExcelFile() {
+            showLoading(true);
+            const fileInput = document.getElementById('excel-file-input');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                showMessage('error', 'Silakan pilih file Excel terlebih dahulu.');
+                showLoading(false);
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+
+                try {
+                    const parsedData = parseExcelData(workbook);
+                    updateAllVisualizations(parsedData);
+                    showMessage('success', 'File Excel berhasil diunggah dan visualisasi diperbarui!');
+                } catch (error) {
+                    showMessage('error', `Gagal memproses file Excel. Error: ${error.message}. Pastikan struktur file Anda sesuai panduan.`);
+                    console.error("Excel processing error:", error);
+                } finally {
+                    showLoading(false);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function parseExcelData(workbook) {
+            const result = {
+                naive_bayes: {},
+                logistic_regression: {},
+                svm: {},
+                sentiment_distribution: {},
+                word_cloud: {
+                    positive: [],
+                    negative: [],
+                    neutral: []
+                }
+            };
+
+            // Parse Sheet1 for metrics and sentiment distribution
+            const sheet1Name = workbook.SheetNames[0];
+            const sheet1 = XLSX.utils.sheet_to_json(workbook.Sheets[sheet1Name], { header: 1 });
+
+            if (sheet1.length < 2) {
+                throw new Error("Sheet1 (Metrik & Distribusi) kosong atau tidak memiliki header.");
+            }
+
+            const headers = sheet1[0].map(h => h ? h.trim() : '');
+            const modelColumns = {
+                'Naive Bayes': -1,
+                'Logistic Regression': -1,
+                'SVM': -1
+            };
+
+            // Find column indices for models
+            headers.forEach((header, index) => {
+                if (header.includes('Naive Bayes')) modelColumns['Naive Bayes'] = index;
+                if (header.includes('Logistic Regression')) modelColumns['Logistic Regression'] = index;
+                if (header.includes('SVM')) modelColumns['SVM'] = index;
+            });
+
+            if (Object.values(modelColumns).some(idx => idx === -1)) {
+                throw new Error("Header model (Naive Bayes, Logistic Regression, SVM) tidak ditemukan di Sheet1. Pastikan nama kolom sesuai.");
+            }
+
+            // Map keys from Excel to JSON
+            const metricMap = {
+                'Accuracy': 'accuracy',
+                'Precision': 'precision',
+                'Recall': 'recall',
+                'F1-Score': 'f1_score',
+                'CM_TP': 'TP',
+                'CM_TN': 'TN',
+                'CM_FP': 'FP',
+                'CM_FN': 'FN',
+                'Positive': 'positive',
+                'Negative': 'negative',
+                'Neutral': 'neutral'
+            };
+
+            for (let i = 1; i < sheet1.length; i++) {
+                const row = sheet1[i];
+                const category = row[0] ? row[0].trim() : '';
+
+                if (!category) continue;
+
+                if (metricMap[category]) {
+                    const jsonKey = metricMap[category];
+
+                    if (['accuracy', 'precision', 'recall', 'f1_score'].includes(jsonKey)) {
+                        result.naive_bayes[jsonKey] = parseFloat(row[modelColumns['Naive Bayes']]) || 0;
+                        result.logistic_regression[jsonKey] = parseFloat(row[modelColumns['Logistic Regression']]) || 0;
+                        result.svm[jsonKey] = parseFloat(row[modelColumns['SVM']]) || 0;
+                    } else if (['TP', 'TN', 'FP', 'FN'].includes(jsonKey)) {
+                        result.naive_bayes.confusion_matrix = result.naive_bayes.confusion_matrix || {};
+                        result.logistic_regression.confusion_matrix = result.logistic_regression.confusion_matrix || {};
+                        result.svm.confusion_matrix = result.svm.confusion_matrix || {};
+
+                        result.naive_bayes.confusion_matrix[jsonKey] = parseInt(row[modelColumns['Naive Bayes']]) || 0;
+                        result.logistic_regression.confusion_matrix[jsonKey] = parseInt(row[modelColumns['Logistic Regression']]) || 0;
+                        result.svm.confusion_matrix[jsonKey] = parseInt(row[modelColumns['SVM']]) || 0;
+                    } else if (['positive', 'negative', 'neutral'].includes(jsonKey)) {
+                        // Sentiment distribution only needs one value, assume it's from Naive Bayes column for consistency
+                        // Or you could average, but for now, just take one.
+                        result.sentiment_distribution[jsonKey] = parseInt(row[modelColumns['Naive Bayes']]) || 0; 
+                    }
+                }
+            }
+
+            // Validasi jika data yang diperlukan ada
+            const requiredMetrics = ['accuracy', 'precision', 'recall', 'f1_score'];
+            const requiredCM = ['TP', 'TN', 'FP', 'FN'];
+
+            ['naive_bayes', 'logistic_regression', 'svm'].forEach(modelKey => {
+                requiredMetrics.forEach(metric => {
+                    if (typeof result[modelKey][metric] === 'undefined' || isNaN(result[modelKey][metric])) {
+                        throw new Error(`Data metrik '${metric}' untuk model '${modelKey}' tidak ditemukan atau tidak valid di Sheet1.`);
+                    }
+                });
+                requiredCM.forEach(cmKey => {
+                    if (!result[modelKey].confusion_matrix || typeof result[modelKey].confusion_matrix[cmKey] === 'undefined' || isNaN(result[modelKey].confusion_matrix[cmKey])) {
+                        throw new Error(`Data confusion matrix '${cmKey}' untuk model '${modelKey}' tidak ditemukan atau tidak valid di Sheet1.`);
+                    }
+                });
+            });
+
+            if (Object.keys(result.sentiment_distribution).length !== 3 || Object.values(result.sentiment_distribution).some(v => typeof v === 'undefined' || isNaN(v))) {
+                throw new Error("Data distribusi sentimen (Positive, Negative, Neutral) tidak lengkap atau tidak valid di Sheet1.");
+            }
+
+
+            // Parse Sheet2, Sheet3, Sheet4 for Word Clouds
+            const wordCloudSheets = {
+                'positive': workbook.SheetNames[1],
+                'negative': workbook.SheetNames[2],
+                'neutral': workbook.SheetNames[3]
+            };
+
+            for (const sentimentType in wordCloudSheets) {
+                const sheetName = wordCloudSheets[sentimentType];
+                if (workbook.Sheets[sheetName]) {
+                    const sheetData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+                    result.word_cloud[sentimentType] = sheetData.map(row => ({
+                        text: String(row.Word || ''), // Pastikan text adalah string
+                        value: parseFloat(row.Value) || 0 // Pastikan value adalah angka
+                    })).filter(d => d.text && d.value > 0); // Filter out invalid or zero-value entries
+                } else {
+                    console.warn(`Sheet untuk word cloud '${sentimentType}' tidak ditemukan: ${sheetName}. Menggunakan data kosong.`);
+                    result.word_cloud[sentimentType] = [];
+                }
+            }
+            return result;
+        }
+
+        // Fungsi baru untuk membuat Grouped Bar Chart untuk perbandingan metrik
+        function createMetricsComparisonChart(nbData, lrData, svmData) {
+            const ctx = document.getElementById('metricsComparisonChart').getContext('2d');
+            
+            if (charts.metricsComparisonChart) {
+                charts.metricsComparisonChart.destroy();
+            }
+
+            charts.metricsComparisonChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Naive Bayes', 'Logistic Regression', 'SVM'],
+                    datasets: [
+                        {
+                            label: 'Accuracy',
+                            data: [nbData.accuracy * 100, lrData.accuracy * 100, svmData.accuracy * 100],
+                            backgroundColor: '#1abc9c', // Teal
+                            borderColor: '#16a085',
+                            borderWidth: 1,
+                            datalabels: {
+                                color: '#333'
+                            }
+                        },
+                        {
+                            label: 'Precision',
+                            data: [nbData.precision * 100, lrData.precision * 100, svmData.precision * 100],
+                            backgroundColor: '#3498db', // Blue
+                            borderColor: '#2980b9',
+                            borderWidth: 1,
+                            datalabels: {
+                                color: '#333'
+                            }
+                        },
+                        {
+                            label: 'Recall',
+                            data: [nbData.recall * 100, lrData.recall * 100, svmData.recall * 100],
+                            backgroundColor: '#9b59b6', // Amethyst
+                            borderColor: '#8e44ad',
+                            borderWidth: 1,
+                            datalabels: {
+                                color: '#333'
+                            }
+                        },
+                        {
+                            label: 'F1-Score',
+                            data: [nbData.f1_score * 100, lrData.f1_score * 100, svmData.f1_score * 100],
+                            backgroundColor: '#e67e22', // Carrot
+                            borderColor: '#d35400',
+                            borderWidth: 1,
+                            datalabels: {
+                                color: '#333'
+                            }
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            stacked: false, // Tidak ditumpuk
+                            grid: {
+                                display: false
+                            }
+                        },
+                        y: {
+                            stacked: false, // Tidak ditumpuk
+                            beginAtZero: true,
+                            max: 100,
+                            title: {
+                                display: true,
+                                text: 'Persentase (%)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y.toFixed(1) + '%';
+                                    }
+                                    return label;
+                                }
+                            }
+                        },
+                        datalabels: {
+                            anchor: 'end',
+                            align: 'top',
+                            formatter: (value) => value.toFixed(1) + '%',
+                            font: {
+                                weight: 'bold',
+                                size: 10
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+
+        function createSentimentChart(positive, negative, neutral) {
+            const ctx = document.getElementById('sentimentChart').getContext('2d');
+            const data = {
+                labels: ['Positif', 'Negatif', 'Netral'],
+                datasets: [{
+                    data: [positive, negative, neutral],
+                    backgroundColor: ['#2ecc71', '#e74c3c', '#3498db'],
+                    hoverOffset: 4
+                }]
+            };
+
+            if (charts.sentimentChart) {
+                charts.sentimentChart.destroy();
+            }
+
+            charts.sentimentChart = new Chart(ctx, {
+                type: 'pie',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed !== null) {
+                                        const total = context.dataset.data.reduce((sum, val) => sum + val, 0);
+                                        const percentage = total > 0 ? (context.parsed / total * 100).toFixed(1) : 0;
+                                        label += `${context.parsed} (${percentage}%)`;
+                                    }
+                                    return label;
+                                }
+                            }
+                        },
+                        datalabels: { // Konfigurasi datalabels
+                            formatter: (value, ctx) => {
+                                const total = ctx.dataset.data.reduce((sum, val) => sum + val, 0);
+                                const percentage = total > 0 ? (value / total * 100).toFixed(1) : 0;
+                                return percentage + '%';
+                            },
+                            color: '#fff', // Warna teks putih agar kontras dengan warna pie
+                            font: {
+                                weight: 'bold',
+                                size: 14
+                            },
+                            textShadow: { // Menambahkan bayangan teks agar lebih mudah dibaca
+                                blur: 4,
+                                color: 'rgba(0, 0, 0, 0.5)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createRadarChart(nbAcc, nbPrec, nbRec, nbF1, lrAcc, lrPrec, lrRec, lrF1, svmAcc, svmPrec, svmRec, svmF1) {
+            const ctx = document.getElementById('radarChart').getContext('2d');
+            
+            if (charts.radarChart) {
+                charts.radarChart.destroy();
+            }
+
+            charts.radarChart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['Accuracy', 'Precision', 'Recall', 'F1-Score'],
+                    datasets: [
+                        {
+                            label: 'Naive Bayes',
+                            data: [nbAcc, nbPrec, nbRec, nbF1],
+                            backgroundColor: 'rgba(231, 76, 60, 0.2)',
+                            borderColor: '#e74c3c',
+                            pointBackgroundColor: '#e74c3c',
+                            pointBorderColor: '#fff',
+                            pointHoverBackgroundColor: '#fff',
+                            pointHoverBorderColor: '#e74c3c'
+                        },
+                        {
+                            label: 'Logistic Regression',
+                            data: [lrAcc, lrPrec, lrRec, lrF1],
+                            backgroundColor: 'rgba(243, 156, 18, 0.2)',
+                            borderColor: '#f39c12',
+                            pointBackgroundColor: '#f39c12',
+                            pointBorderColor: '#fff',
+                            pointHoverBackgroundColor: '#fff',
+                            pointHoverBorderColor: '#f39c12'
+                        },
+                        {
+                            label: 'Support Vector Machine',
+                            data: [svmAcc, svmPrec, svmRec, svmF1],
+                            backgroundColor: 'rgba(46, 204, 113, 0.2)',
+                            borderColor: '#2ecc71',
+                            pointBackgroundColor: '#2ecc71',
+                            pointBorderColor: '#fff',
+                            pointHoverBackgroundColor: '#fff',
+                            pointHoverBorderColor: '#2ecc71'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            angleLines: {
+                                display: true
+                            },
+                            suggestedMin: 0,
+                            suggestedMax: 100,
+                            ticks: {
+                                beginAtZero: true,
+                                max: 100,
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.r !== null) {
+                                        label += context.parsed.r.toFixed(1) + '%';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // New function for Overall Performance Bar Chart
+        function createOverallPerformanceChart(modelScores) {
+            const ctx = document.getElementById('overallPerformanceChart').getContext('2d');
+            const labels = modelScores.map(m => m.name);
+            const data = modelScores.map(m => m.avg);
+            const backgroundColor = ['#e74c3c', '#f39c12', '#27ae60']; // Consistent colors
+
+            if (charts.overallPerformanceChart) {
+                charts.overallPerformanceChart.destroy();
+            }
+
+            charts.overallPerformanceChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Skor Rata-rata Model',
+                        data: data,
+                        backgroundColor: backgroundColor,
+                        borderColor: backgroundColor.map(color => color.replace(')', ', 1)')),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'x',
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            title: {
+                                display: true,
+                                text: 'Skor Rata-rata (%)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y.toFixed(1) + '%';
+                                    }
+                                    return label;
+                                }
+                            }
+                        },
+                        datalabels: {
+                            anchor: 'end',
+                            align: 'top',
+                            formatter: (value) => value.toFixed(1) + '%',
+                            color: '#333',
+                            font: {
+                                weight: 'bold'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Word Cloud Function (using d3.layout.cloud.js)
+        function drawWordCloud(svgId, words, colors) {
+            const svg = d3.select(`#${svgId}`);
+            svg.selectAll("*").remove(); // Bersihkan word cloud sebelumnya
+
+            // Ambil dimensi dari elemen parent
+            const parentContainer = svg.node().parentNode;
+            // Pastikan parentContainer ada dan memiliki dimensi
+            if (!parentContainer) {
+                console.error(`Parent container for #${svgId} not found.`);
+                return;
+            }
+            const width = parentContainer.clientWidth;
+            const height = parentContainer.clientHeight;
+
+            // Pastikan SVG memiliki dimensi yang tepat
+            svg.attr("width", width)
+               .attr("height", height);
+
+            if (!words || words.length === 0) {
+                svg.append("text")
+                   .attr("x", width / 2)
+                   .attr("y", height / 2)
+                   .attr("text-anchor", "middle")
+                   .style("font-size", "18px")
+                   .style("fill", "#888")
+                   .text("Tidak ada data Word Cloud.");
+                return;
+            }
+
+            const maxFontSize = 70; // Ukuran font maksimum yang lebih besar (disesuaikan)
+            const minFontSize = 12;  // Ukuran font minimum yang lebih besar
+
+            // Skala untuk ukuran font berdasarkan nilai/frekuensi perkataan
+            // Menggunakan d.value karena JSON user menggunakan 'value'
+            const fontSizeScale = d3.scaleSqrt()
+                .domain([0, d3.max(words, d => d.value) || 1]) // Pastikan domain tidak nol
+                .range([minFontSize, maxFontSize]);
+
+            // Skala warna untuk word cloud
+            const colorScale = d3.scaleOrdinal(colors); // Menggunakan array warna yang diberikan
+
+            // Periksa apakah d3.layout.cloud tersedia
+            if (typeof d3.layout === 'undefined' || typeof d3.layout.cloud === 'undefined') {
+                console.error("d3.layout.cloud.js tidak dimuat dengan benar. Pastikan pautan skrip sudah betul.");
+                svg.append("text")
+                   .attr("x", width / 2)
+                   .attr("y", height / 2)
+                   .attr("text-anchor", "middle")
+                   .style("font-size", "16px")
+                   .style("fill", "#888")
+                   .text("Gagal memuat Word Cloud. Pustaka tidak tersedia.");
+                return;
+            }
+
+            const layout = d3.layout.cloud()
+                .size([width, height])
+                .words(words.map(d => ({ text: d.text, size: fontSizeScale(d.value) })))
+                .padding(5) // Mengurangi padding untuk kepadatan yang lebih tinggi (disesuaikan)
+                .rotate(() => {
+                    // Rotasi acak 0 atau 90 derajat
+                    return (Math.random() > 0.5 ? 90 : 0);
+                }) 
+                .font("Impact") // Menggunakan font Impact
+                .fontSize(d => d.size)
+                .on("end", draw);
+
+            layout.start();
+
+            function draw(words) {
+                const chartGroup = svg.append("g")
+                    .attr("transform", `translate(${layout.size()[0] / 2},${layout.size()[1] / 2})`);
+
+                chartGroup.selectAll("text")
+                    .data(words)
+                    .enter().append("text")
+                    .style("font-size", d => `${d.size}px`)
+                    .style("font-family", "Impact") // Pastikan font Impact digunakan
+                    .style("fill", (d, i) => colorScale(i)) // Menggunakan skala warna
+                    .attr("text-anchor", "middle")
+                    .attr("transform", d => `translate(${d.x},${d.y})rotate(${d.rotate})`)
+                    .text(d => d.text);
+            }
+        }
+
+        // Fungsi untuk membersihkan data dan mereset dashboard
+        function clearData() {
+            // Reset input fields
+            document.getElementById('json-input').value = '';
+            document.getElementById('excel-file-input').value = '';
+
+            // Data placeholder untuk mereset dashboard
+            const placeholderData = {
+                "naive_bayes": { "accuracy": 0.0, "precision": 0.0, "recall": 0.0, "f1_score": 0.0, "confusion_matrix": { "TP": 0, "TN": 0, "FP": 0, "FN": 0 } },
+                "logistic_regression": { "accuracy": 0.0, "precision": 0.0, "recall": 0.0, "f1_score": 0.0, "confusion_matrix": { "TP": 0, "TN": 0, "FP": 0, "FN": 0 } },
+                "svm": { "accuracy": 0.0, "precision": 0.0, "recall": 0.0, "f1_score": 0.0, "confusion_matrix": { "TP": 0, "TN": 0, "FP": 0, "FN": 0 } },
+                "sentiment_distribution": { "positive": 0, "negative": 0, "neutral": 0 },
+                "word_cloud": {
+                    "positive": [],
+                    "negative": [],
+                    "neutral": []
+                }
+            };
+            updateAllVisualizations(placeholderData);
+            showMessage('success', 'Data telah dibersihkan. Silakan masukkan data baru.');
+        }
+
+        // Initial load with placeholder data or first tab active
+        document.addEventListener('DOMContentLoaded', () => {
+            openTab('json-input-tab'); // Set JSON input as default active tab
+
+            // Example placeholder data (menggunakan 'value' untuk konsistensi)
+            const placeholderData = {
+                "naive_bayes": { "accuracy": 0.5945, "precision": 0.5394, "recall": 0.5511, "f1_score": 0.5446, "confusion_matrix": { "TP": 100, "TN": 200, "FP": 50, "FN": 30 } },
+                "logistic_regression": { "accuracy": 0.8201, "precision": 0.824, "recall": 0.7675, "f1_score": 0.7903, "confusion_matrix": { "TP": 250, "TN": 300, "FP": 20, "FN": 15 } },
+                "svm": { "accuracy": 0.8476, "precision": 0.8526, "recall": 0.8035, "f1_score": 0.8248, "confusion_matrix": { "TP": 280, "TN": 350, "FP": 10, "FN": 5 } },
+                "sentiment_distribution": { "positive": 349, "negative": 321, "neutral": 969 },
+                "word_cloud": {
+                    "positive": [
+                        { "text": "indonesiagelap", "value": 372 }, { "text": "rakyat", "value": 174 }, { "text": "jokowi", "value": 53 }, { "text": "hukum", "value": 48 }, { "text": "negara", "value": 48 }, { "text": "indonesia", "value": 43 }, { "text": "adil", "value": 42 }, { "text": "indonesiagelapjilid", "value": 39 }, { "text": "orang", "value": 37 }, { "text": "amp", "value": 37 }, { "text": "aja", "value": 36 }, { "text": "presiden", "value": 35 }, { "text": "jabat", "value": 27 }, { "text": "percaya", "value": 27 }, { "text": "gak", "value": 25 }, { "text": "tdk", "value": 24 }, { "text": "bersih", "value": 24 }, { "text": "hidup", "value": 23 }, { "text": "uang", "value": 23 }, { "text": "utk", "value": 22 }, { "text": "nya", "value": 22 }, { "text": "bikin", "value": 22 }, { "text": "moga", "value": 22 }, { "text": "prabowo", "value": 22 }, { "text": "kuat", "value": 20 }, { "text": "adilijokowi", "value": 20 }, { "text": "demo", "value": 20 }, { "text": "perintah", "value": 19 }, { "text": "terang", "value": 19 }, { "text": "tegak", "value": 18 }, { "text": "occrp", "value": 17 }, { "text": "bijak", "value": 16 }, { "text": "selamat", "value": 16 }, { "text": "negeri", "value": 15 }, { "text": "sehat", "value": 15 }, { "text": "kaburajadulu", "value": 15 }, { "text": "kuasa", "value": 15 }, { "text": "menang", "value": 14 }, { "text": "pimpin", "value": 14 }, { "text": "bilang", "value": 14 }, { "text": "kabinet", "value": 14 }, { "text": "kerja", "value": 14 }, { "text": "banjir", "value": 14 }, { "text": "pertamina", "value": 13 }, { "text": "baik", "value": 13 }, { "text": "hebat", "value": 13 }, { "text": "keluarga", "value": 12 }, { "text": "cari", "value": 12 }, { "text": "biar", "value": 12 }, { "text": "kalo", "value": 12 }, { "text": "aksi", "value": 12 }, { "text": "pake", "value": 12 }, { "text": "dunia", "value": 11 }, { "text": "mahasiswa", "value": 11 }, { "text": "tipu", "value": 11 }, { "text": "main", "value": 11 }, { "text": "exabet", "value": 11 }, { "text": "nih", "value": 11 }, { "text": "omon", "value": 11 }, { "text": "mulyono", "value": 10 }, { "text": "suara", "value": 10 }, { "text": "suka", "value": 10 }, { "text": "berani", "value": 10 }, { "text": "koruptor", "value": 10 }, { "text": "bayar", "value": 10 }, { "text": "cpns", "value": 10 }, { "text": "gaji", "value": 10 }, { "text": "menteri", "value": 10 }, { "text": "dgn", "value": 10 }, { "text": "media", "value": 10 }, { "text": "bukti", "value": 10 }
+                    ],
+                    "negative": [
+                        { "text": "indonesiagelap", "value": 338 }, { "text": "korupsi", "value": 124 }, { "text": "gelap", "value": 71 }, { "text": "negara", "value": 51 }, { "text": "indonesia", "value": 49 }, { "text": "indonesiagelapjilid", "value": 34 }, { "text": "jabat", "value": 30 }, { "text": "amp", "value": 28 }, { "text": "hukum", "value": 27 }, { "text": "orang", "value": 24 }, { "text": "perintah", "value": 23 }, { "text": "kuasa", "value": 23 }, { "text": "rakyat", "value": 22 }, { "text": "salah", "value": 21 }, { "text": "rusak", "value": 21 }, { "text": "kaburajadulu", "value": 18 }, { "text": "nya", "value": 18 }, { "text": "jahat", "value": 18 }, { "text": "koruptor", "value": 17 }, { "text": "negeri", "value": 17 }, { "text": "ekonomi", "value": 17 }, { "text": "pertamina", "value": 16 }, { "text": "uang", "value": 15 }, { "text": "aja", "value": 15 }, { "text": "parah", "value": 15 }, { "text": "udah", "value": 13 }, { "text": "busuk", "value": 12 }, { "text": "adilijokowi", "value": 12 }, { "text": "buka", "value": 12 }, { "text": "presiden", "value": 12 }, { "text": "bilang", "value": 12 }, { "text": "adilijokowiataurevolusi", "value": 12 }, { "text": "penyalahgunaan", "value": 11 }, { "text": "laku", "value": 11 }, { "text": "omon", "value": 11 }, { "text": "berita", "value": 11 }, { "text": "kaya", "value": 11 }, { "text": "dlm", "value": 11 }, { "text": "gak", "value": 10 }, { "text": "manusia", "value": 10 }, { "text": "indonesiadaruratkorupsi", "value": 10 }, { "text": "bener", "value": 10 }, { "text": "bodoh", "value": 10 }, { "text": "atur", "value": 10 }, { "text": "dgn", "value": 10 }, { "text": "berantas", "value": 10 }, { "text": "bahaya", "value": 9 }, { "text": "aset", "value": 9 }, { "text": "bangsa", "value": 9 }, { "text": "kerja", "value": 9 }, { "text": "hancur", "value": 9 }, { "text": "bikin", "value": 9 }, { "text": "palsu", "value": 9 }, { "text": "oplos", "value": 9 }, { "text": "emas", "value": 9 }, { "text": "biar", "value": 9 }, { "text": "habis", "value": 9 }, { "text": "gila", "value": 9 }, { "text": "ruu", "value": 8 }, { "text": "mati", "value": 8 }, { "text": "bumn", "value": 8 }, { "text": "rugi", "value": 8 }, { "text": "politik", "value": 8 }, { "text": "gagal", "value": 8 }, { "text": "nih", "value": 8 }, { "text": "bobrok", "value": 8 }, { "text": "jokowi", "value": 8 }, { "text": "suram", "value": 8 }, { "text": "kacau", "value": 8 }, { "text": "mana", "value": 8 }, { "text": "pimpin", "value": 8 }, { "text": "mafia", "value": 8 }, { "text": "dana", "value": 8 }, { "text": "takut", "value": 8 }, { "text": "hasil", "value": 8 }, { "text": "main", "value": 8 }, { "text": "pakai", "value": 8 }, { "text": "oknum", "value": 8 }, { "text": "celah", "value": 8 }, { "text": "emang", "value": 8 }
+                    ],
+                    "neutral": [
+                        { "text": "indonesiagelap", "value": 1035 }, { "text": "indonesiagelapjilid", "value": 130 }, { "text": "indonesia", "value": 67 }, { "text": "negara", "value": 65 }, { "text": "adilijokowihargamati", "value": 64 }, { "text": "aja", "value": 63 }, { "text": "daruratindonesia", "value": 54 }, { "text": "orang", "value": 52 }, { "text": "gak", "value": 52 }, { "text": "lawanajadulu", "value": 51 }, { "text": "tolakdanantara", "value": 51 }, { "text": "terusberisik", "value": 50 }, { "text": "revolusisampaiberhasil", "value": 50 }, { "text": "shameonuprabowo", "value": 50 }, { "text": "gibrankangsusu", "value": 50 }, { "text": "nya", "value": 49 }, { "text": "amp", "value": 45 }, { "text": "jabat", "value": 44 }, { "text": "adilijokowi", "value": 41 }, { "text": "presiden", "value": 40 }, { "text": "rakyat", "value": 35 }, { "text": "prabowo", "value": 35 }, { "text": "perintah", "value": 34 }, { "text": "hukum", "value": 32 }, { "text": "kaburajadulu", "value": 32 }, { "text": "kerja", "value": 30 }, { "text": "kuasa", "value": 29 }, { "text": "kalo", "value": 29 }, { "text": "udah", "value": 28 }, { "text": "mulyono", "value": 27 }, { "text": "oplos", "value": 27 }, { "text": "pertamina", "value": 26 }, { "text": "negeri", "value": 26 }, { "text": "bener", "value": 26 }, { "text": "omon", "value": 26 }, { "text": "demo", "value": 25 }, { "text": "banjir", "value": 25 }, { "text": "bilang", "value": 25 }, { "text": "korupsi", "value": 24 }, { "text": "adilijokowiataurevolusi", "value": 24 }, { "text": "anak", "value": 23 }, { "text": "koruptor", "value": 21 }, { "text": "gin", "value": 21 }, { "text": "tipu", "value": 21 }, { "text": "sdh", "value": 20 }, { "text": "hidup", "value": 20 }, { "text": "menteri", "value": 20 }, { "text": "fufufafaaibnasional", "value": 19 }, { "text": "nggak", "value": 19 }, { "text": "jokowi", "value": 18 }, { "text": "indonesialenyap", "value": 18 }, { "text": "banget", "value": 17 }, { "text": "biar", "value": 17 }, { "text": "efisiensi", "value": 17 }, { "text": "mahasiswa", "value": 17 }, { "text": "raja", "value": 17 }, { "text": "ndasmu", "value": 17 }, { "text": "palsu", "value": 17 }, { "text": "habis", "value": 16 }, { "text": "darkindonesia", "value": 16 }, { "text": "sih", "value": 16 }, { "text": "emang", "value": 16 }, { "text": "tdk", "value": 15 }, { "text": "nih", "value": 15 }, { "text": "nama", "value": 15 }, { "text": "isi", "value": 15 }, { "text": "berita", "value": 14 }, { "text": "sesuai", "value": 14 }, { "text": "dpr", "value": 14 }, { "text": "laku", "value": 14 }, { "text": "exabet", "value": 14 }, { "text": "jalan", "value": 14 }, { "text": "makan", "value": 14 }, { "text": "uang", "value": 14 }, { "text": "beneran", "value": 14 }, { "text": "harap", "value": 14 }, { "text": "dah", "value": 14 }, { "text": "tau", "value": 14 }, { "text": "revolusi", "value": 14 }, { "text": "korup", "value": 14 }
+                    ]
+                }
+            };
+            updateAllVisualizations(placeholderData);
+            showMessage('success', 'Selamat datang! Silakan masukkan data Anda untuk memulai analisis.');
+        });
+    </script>
+</body>
+</html>
